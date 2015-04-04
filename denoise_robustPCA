@@ -1,0 +1,83 @@
+install.packages("rrcov")
+library(rrcov)
+ls("package:rrcov")
+
+#na_vec <- NULL
+folders <- dir("../driver/drivers/")
+GetResult <- function(driver)
+{
+  filename <- paste("../driver/feat_file/", driver, ".txt", sep='')
+  tempdata <-read.table(file=filename,header=TRUE)
+
+  tempdata <- as.matrix(tempdata)
+  #na_count <- sum(rowSums(is.na(tempdata))!= 0)
+  #na_vec[driver_num] <- na_count
+  #logical <- rowSums(is.na(tempdata))!= 0
+  #na_indis <- which(logical==TRUE)
+  indis <- which(is.na(tempdata), arr.ind=TRUE)
+  #unique(indis[,2])
+    for (r in 1:nrow(indis))
+      { tempdata[indis[r,1], indis[r,2]]=0 }
+  #sum(is.na(tempdata))
+  pca <- PcaHubert(tempdata)
+  #p <- as.numeric(pca@flag)
+  
+  cutoff.od <- pca@cutoff.od
+  cutoff.sd <- pca@cutoff.sd
+  centerdata_od = pca@od[which(pca@od < cutoff.od & pca@sd<cutoff.sd)]
+  centerdata_sd = pca@sd[which(pca@od < cutoff.od & pca@sd<cutoff.sd)]
+  od_mean = mean(centerdata_od)
+  od_std = sd(centerdata_od)
+  sd_mean = mean(centerdata_sd)
+  sd_std = sd(centerdata_sd)
+  score = exp(-((pca@od-od_mean)/od_std)^2)*exp(-((pca@sd-sd_mean)/sd_std)^2)
+  labels <- paste(driver, "_", 1:200, sep='')
+  result <- cbind(labels, score)
+} 
+  
+library(parallel)
+numWorkers <- 3 
+cl<-makeCluster(numWorkers,type="PSOCK")
+clusterEvalQ(cl, {library(rrcov)})
+res<- parLapply(cl, folders, GetResult)
+stopCluster(cl)
+
+finalresult <-matrix(,nrow=0,ncol=2)
+colnames (finalresult) <- c("driver_trip", "prob")
+tempfiles <- dir("../driver/drivers/1")
+for (driver_num in 1:2736){
+  tempmatrix <- as.matrix(res[[driver_num]])
+  for (trip_num in 1:200)
+  {tempmatrix[trip_num,1]=paste(folders[driver_num],"_",
+                            substring(tempfiles[trip_num], 1, nchar(tempfiles[trip_num])-4), 
+                            sep='')
+  }
+  finalresult <- rbind(finalresult,tempmatrix)
+}
+
+filename <- paste("../driver/finalresult_pca.csv", sep='')
+write.csv(finalresult,file=filename,row.names=FALSE)
+
+####################################################################
+  #jpegname <- paste(folders[driver_num], ".jpeg", sep='')
+  #jpeg_dir_name <- paste("../driver/diagnostic_plot/", jpegname, sep='')
+ 
+  #jpeg(jpeg_dir_name)
+  #plot(pca)
+  #dev.off()
+
+
+#csv_folder <- dir("../driver/ourtliers/")
+#total <- length(csv_folder)
+
+#csv1_filename <- paste("../driver/outliers/", csv_folder[1], sep='')
+#result <- read.csv(file=csv1_filename,header=TRUE)
+
+#for (j in 2:total)
+#{
+#  csv_filename <- paste("../driver/outliers/", csv_folder[j], sep='')
+#  temp <- read.csv(file=csv_filename,header=TRUE)
+#  result <- rbind(result,temp)
+  #result <- merge(result, temp, by = c("driver_trip","prob"), all = TRUE)
+}
+
