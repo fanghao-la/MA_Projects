@@ -1,0 +1,106 @@
+install.packages("rrcov")
+library(rrcov)
+ls("package:rrcov")
+
+install.packages("rrcovHD")
+library(rrcovHD)
+ls("package:rrcovHD")
+
+
+
+GetResult<-function(driver_num){
+  #driver_num <- which(folders == "103")  
+  folders <- dir("../driver/drivers/")
+  print(driver_num)
+  filename <- paste("../driver/feat_file/", folders[driver_num], ".txt", sep='')
+  tempdata <-read.table(file=filename,header=TRUE)
+
+  tempdata <- as.matrix(tempdata)
+  #na_count <- sum(rowSums(is.na(tempdata))!= 0)
+  #na_vec[driver_num] <- na_count
+  #logical <- rowSums(is.na(tempdata))!= 0
+  #na_indis <- which(logical==TRUE)
+  indis <- which( is.na(tempdata), arr.ind=TRUE)
+  #unique(indis[,2])
+    for (r in 1:nrow(indis))
+      { tempdata[indis[r,1], indis[r,2]]=0 }
+  #sum(is.na(tempdata))
+  pca <- PcaHubert(tempdata[,1:12],scale=TRUE)
+  
+  cutoff.od <- pca@cutoff.od
+  cutoff.sd <- pca@cutoff.sd
+  #outlier <- which(pca@od>cutoff.od & pca@sd>cutoff.sd)
+  centerdata_od = pca@od[which(pca@od < cutoff.od & pca@sd<cutoff.sd)]
+  centerdata_sd = pca@sd[which(pca@od < cutoff.od & pca@sd<cutoff.sd)]
+  od_mean = mean(centerdata_od)
+  od_std = sd(centerdata_od)
+  sd_mean = mean(centerdata_sd)
+  sd_std = sd(centerdata_sd)
+  score = exp(-((pca@od-od_mean)/od_std)^2)*exp(-((pca@sd-sd_mean)/sd_std)^2)
+
+  result_table <- matrix(nrow=200, ncol=2)
+  colnames (result_table) <- c("driver_trip", "prob")
+  col_1 <- paste(folders[driver_num], "_", 1:200, sep='')
+    for (i in 1:200)
+      { result_table[i,1] <- col_1[i]  
+        result_table[i,2] <- score[i]
+      }
+  return(result_table)
+
+  #filename <- paste("../driver/outliers/", folders[driver_num], ".csv", sep='')
+  #write.csv(result_table,file=filename,row.names=FALSE)
+
+  #jpegname <- paste(folders[driver_num], ".jpeg", sep='')
+  #jpeg_dir_name <- paste("../driver/diagnostic_plot/", jpegname, sep='')
+ 
+  #jpeg(jpeg_dir_name)
+  #plot(pca)
+  #dev.off()
+}
+values<-1:2736
+library(parallel)
+## Number of workers (R processes) to use:
+numWorkers<-4 
+## Set up the 'cluster'
+cl<-makeCluster(numWorkers,type="PSOCK")
+clusterEvalQ(cl, {library(rrcov); library(rrcovHD)})
+## Parallel calculation (parLapply):
+res<- parLapply(cl, values, GetResult)
+## Shut down cluster
+stopCluster(cl)
+#x11()
+#na_vec <- c()
+folders <- dir("../driver/drivers/")
+finalresult <-matrix(,nrow=0,ncol=2)
+colnames (finalresult) <- c("driver_trip", "prob")
+for (driver_num in 1:2736){
+  finalresult <- rbind(finalresult,as.matrix(res[[driver_num]]))
+}
+
+filename <- paste("../driver/finalresult3.csv", sep='')
+write.csv(finalresult,file=filename,row.names=FALSE)
+
+#csv_folder <- dir("../driver/ourtliers/")
+#total <- length(csv_folder)
+
+#csv1_filename <- paste("../driver/outliers/", csv_folder[1], sep='')
+#result <- read.csv(file=csv1_filename,header=TRUE)
+
+#for (j in 2:total)
+#{
+#  csv_filename <- paste("../driver/outliers/", csv_folder[j], sep='')
+#  temp <- read.csv(file=csv_filename,header=TRUE)
+#  result <- rbind(result,temp)
+  #result <- merge(result, temp, by = c("driver_trip","prob"), all = TRUE)
+#}
+
+#final_name <- paste("../driver/outliers/final_result_2.csv")
+#write.csv(result,file=final_name,row.names=FALSE)
+
+
+#inclu <- c(1,3,5,7,9,11,12,13,15,17,19,38,40,42,44,46)
+#testdata <- tempdata[, inclu]
+#testpca <- PcaHubert(testdata, scale=TRUE, trace=TRUE)
+#plot(testpca)
+
+
