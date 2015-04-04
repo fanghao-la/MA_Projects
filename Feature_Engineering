@@ -1,0 +1,91 @@
+
+#setwd("C:/Users/pp/Desktop/kaggle/driver")
+#source("C:/Users/pp/Desktop/kaggle/driver/R_code.R")
+
+feat <- function(driver_num, trip_num)
+{
+working_dats <- get_trip(driver_num, trip_num) 
+
+################ speed: feature 1 ######################
+vel <- velocity(working_dats)
+quant_vel <- quantile(vel, seq(from = .1, to = 1, by = .1))    # in the unit of meter/second
+feat_1 <- matrix(quant_vel, nrow=1)
+
+################ feature 2 and 3 ######################
+total_distance <- sum(vel)
+feat_2 <- total_distance    # in the unit of meter
+
+approx_time <- nrow(working_dats)
+feat_3 <- approx_time   # in the unit of second
+
+################ acceleration: feature 4, 5, 6 and 7 ######################
+accel <- acceleration(working_dats)
+quant_accel <- quantile(accel, seq(.1, 1, .1))
+feat_4 <- matrix(quant_accel, nrow=1)
+
+extremes <- extreme_accel(accel)
+feat_5 <- cbind(length(extremes[[1]]), mean(extremes[[1]]))
+extremes[[2]]
+feat_6 <- cbind(length(extremes[[2]]), mean(extremes[[2]]))
+
+lospeed_accel <- accel_lo_vel(vel, accel)
+lospeed_no <- length(lowspeed_accel)
+quant <- quantile(lowspeed_accel, seq(.1,1,.1))
+feat_7 <- cbind(lospeed_no, matrix(quant, nrow=1))
+
+################ turning angles: feature 8 ######################
+
+angle <- angles(working_dats)
+quant_angle <- quantile(angle, seq(.1,1,.1), na.rm=TRUE)
+feat_8 <- matrix(quant_angle, nrow=1)
+
+indis <- which(angle>=45)
+angle_45_no <- length(indis)
+turn_vel <- vel[indis]
+quant_turn_vel <- quantile(turn_vel, c(0, .25, .5, .75, 1))
+turn_accel <- accel[indis]
+quant_turn_accel <- quantile(turn_accel, c(0, .25, .5, .75, 1))
+feat_9 <- angle_45_no
+feat_10 <- matrix(quant_turn_vel, nrow=1)
+feat_11 <- matrix(quant_turn_accel, nrow=1)
+
+feat_table <- cbind(feat_1, feat_2, feat_3, feat_4, feat_5, feat_6, feat_7, feat_8, feat_9, feat_10, feat_11)
+return(feat_table)
+}
+
+
+##############################################################################
+setwd("C:/Users/pp/Desktop/kaggle/driver")
+source("C:/Users/pp/Desktop/kaggle/driver/R_code_part_1.R")
+source("C:/Users/pp/Desktop/kaggle/driver/R_code_part_2.R")
+
+folders <- dir("../driver/drivers/")
+for(driver_num in 1:2736)
+{
+feat_table <- matrix(nrow=200, ncol=58)
+name1 <- paste("vel", 1:10)
+name2 <- paste("accel", 1:10)
+name3 <- paste("lo_vel_accel",1:10)
+name4 <- paste("angle",1:10)
+name5 <- paste("turn_vel", 1:5)
+name6 <- paste("turn_accel", 1:5)
+colnames(feat_table) <- c(name1, "dist", "time", name2, "ext_acc_count1", "ext_acc_ave1", 
+                          "ext_acc_count2", "ext_acc_ave2", "lo_vel_count", name3, name4, 
+                          "angle45_count", name5, name6)
+
+#folders <- dir("../driver/drivers/")
+#for(driver_num in 1:2736)
+#{
+  for (trip_num in 1:200)
+  {
+   feat_table[trip_num,] <- feat(driver_num, trip_num)
+  }
+
+  filename <- paste("../driver/feat_file/", folders[driver_num], ".txt", sep='')
+  write.table(feat_table,file=filename,row.names=FALSE)
+  print(driver_num)
+}  
+
+#temp <-read.table(file=filename,header=TRUE)
+
+
